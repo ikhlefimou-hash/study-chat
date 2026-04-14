@@ -1,0 +1,132 @@
+import os, time, json, hmac, hashlib, bleach, logging, requests, pybreaker
+from flask import Flask, request, jsonify, g
+from flask_socketio import SocketIO, emit, disconnect
+from redis import Redis
+from firebase_admin import credentials, auth, initialize_app
+import firebase_admin
+from prometheus_client import Counter, Histogram, generate_latest
+from pydantic import BaseModel, constr, validator
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from prometheus_client import make_wsgi_app
+
+# --- 1. الإعدادات المركزية (Config) ---
+class Config:
+    SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "prod-secret-key")
+    HMAC_KEY = os.getenv("HMAC_SIGNING_KEY", "integrity-key-2026")
+    GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# --- 2. محرك الأمان (Security & Validation) ---
+class MessageSchema(BaseModel):
+    text: constr(min_length=1, max_length=1000)
+    ts: int
+    hash: str
+
+    @validator('text')
+    def sanitize(cls, v):
+        return bleach.clean(v, tags=[], strip=True).strip()
+
+    @validator('ts')
+    def check_time(cls, v):
+        if abs(time.time() - v) > 15: # حماية من Replay Attack
+            raise ValueError("Expired")
+        return v
+
+def verify_integrity(payload, received_hash):
+    expected = hmac.new(Config.HMAC_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, received_hash)
+
+# --- 3. بوابة الذكاء الاصطناعي (Resilient AI Gateway) ---
+# القاطع الكهربائي: يحمي النظام عند تعطل API جوجل
+ai_breaker = pybreaker.CircuitBreaker(fail_max=5, reset_timeout=60)
+
+def get_ai_reply(prompt, redis_client):
+    # Semantic Cache لتقليل التكاليف
+    p_hash = hashlib.sha256(prompt.strip().lower().encode()).hexdigest()
+    cached = redis_client.get(f"ai_cache:{p_hash}")
+    if cached: return cached, "cache"
+
+    @ai_breaker
+    def call_api():
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={Config.GEMINI_KEY}"
+        r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=10)
+        r.raise_for_status()
+        return r.json()['candidates'][0]['content']['parts'][0]['text']
+
+    try:
+        reply = call_api()
+        redis_client.setex(f"ai_cache:{p_hash}", 3600, reply)
+        return reply, "api"
+    except Exception:
+        return "عذراً، نظام الذكاء الاصطناعي في حالة صيانة حالياً.", "fallback"
+
+# --- 4. إعداد التطبيق والخدمات (Initialization) ---
+app = Flask(__name__)
+app.config.from_object(Config)
+
+# إعداد المقاييس (Observability)
+MSG_COUNTER = Counter('chat_messages_total', 'Total messages handled')
+AI_LATENCY = Histogram('ai_response_duration_seconds', 'Latency of Gemini API')
+
+# إعداد Redis و Firebase
+redis_client = Redis.from_url(Config.REDIS_URL, decode_responses=True)
+if not firebase_admin._apps:
+    initialize_app(credentials.Certificate(os.getenv("FIREBASE_KEY_PATH")))
+
+# إعداد Socket.IO مع دعم الـ Clustering عبر Redis
+socketio = SocketIO(app, message_queue=Config.REDIS_URL, cors_allowed_origins="*", async_mode='eventlet')
+
+# --- 5. منطق السوكيت المتقدم (Real-time Core) ---
+@socketio.on('send_msg')
+def handle_secure_message(data):
+    # 1. استرجاع بيانات السيشن الموثقة من Redis
+    sess_raw = redis_client.get(f"sid:{request.sid}")
+    if not sess_raw: return disconnect()
+    sess = json.loads(sess_raw)
+
+    # 2. فحص البيانات ميكانيكياً (Pydantic)
+    try:
+        msg = MessageSchema(**data)
+    except: return False
+
+    # 3. فحص سلامة الرسالة (HMAC Integrity)
+    payload = f"{msg.text}{sess['uid']}{msg.ts}"
+    if not verify_integrity(payload, msg.hash):
+        logging.warning(f"Integrity Violation from {sess['uid']}")
+        return False
+
+    # 4. منع الـ Spam (Rate Limiting)
+    throttle_key = f"limit:{sess['uid']}"
+    if redis_client.get(throttle_key): 
+        emit('error', 'انتظر قليلاً قبل إرسال الرسالة القادمة')
+        return False
+    redis_client.setex(throttle_key, 2, "active")
+
+    # 5. البث الآمن للرسالة
+    MSG_COUNTER.inc()
+    emit('new_msg', {'text': msg.text, 'user': sess['uid'][:6]}, to='public')
+
+# --- 6. نقاط النهاية (Endpoints) ---
+@app.route('/api/ai', methods=['POST'])
+def chat_ai():
+    # التحقق من الـ JWT Token (تبسيط)
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    try:
+        decoded = auth.verify_id_token(token)
+        uid = decoded['uid']
+    except: return jsonify({"error": "Unauthorized"}), 401
+
+    prompt = bleach.clean(request.json.get('prompt', ''), strip=True)
+    with AI_LATENCY.time():
+        reply, source = get_ai_reply(prompt, redis_client)
+    
+    return jsonify({"reply": reply, "source": source})
+
+# دمج بوابة المقاييس (Metrics) ليتم سحبها من Prometheus
+app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {
+    '/metrics': make_wsgi_app()
+})
+
+if __name__ == '__main__':
+    # ملاحظة: في الإنتاج استخدم gunicorn -k eventlet -w 1 final_app:app
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
