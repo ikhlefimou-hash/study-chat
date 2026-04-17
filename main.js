@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+جdocument.addEventListener('DOMContentLoaded', function() {
     const loginBtn = document.getElementById('login-btn');
     if (loginBtn) {
         loginBtn.onclick = function() {
